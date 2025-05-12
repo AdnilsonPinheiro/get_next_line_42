@@ -6,81 +6,112 @@
 /*   By: adpinhei <adpinhei@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/04/29 16:15:28 by adpinhei          #+#    #+#             */
-/*   Updated: 2025/05/02 18:11:16 by adpinhei         ###   ########.fr       */
+/*   Updated: 2025/05/09 18:47:45 by adpinhei         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
 #include <stdio.h>
 
-/*measures the size of a string up until a char c*/
-int	ft_strnlen(char *str, char chr)
+/*reads file into the buffer
+updates the stash
+checks for n read bytes*/
+char	*ft_read_file(int fd, char *stash)
 {
-	int	i;
+	char	*buffer;
+	int		byte_read;
 
-	i = 0;
-	while (str[i] && str[i] != chr)
-		i++;
-	return (++i);
-}
-
-int	ft_strlen(char *str)
-{
-	int	i;
-
-	i = 0;
-	while (str[i])
-		i++;
-	return (i);
-}
-
-char	*ft_strchr(char *str, int c)
-{
-	int	i;
-	int	size;
-
-	i = 0;
-	size = ft_strlen(str);
-	while (i <= size)
+	buffer = (char *)malloc(sizeof(char) * BUFFER_SIZE + 1);
+	if (!buffer)
+		return (free(stash), NULL);
+	byte_read = 1;
+	while (byte_read > 0)
 	{
-		if ((char)str[i] == (char)c)
-			return ((char *)&str[i]);
+		byte_read = read(fd, buffer, BUFFER_SIZE);
+		if (byte_read == -1)
+			return (free(buffer), free(stash), NULL);
+		buffer[byte_read] = '\0';
+		stash = ft_free_join(stash, buffer);
+		if (!stash)
+			return (free(buffer), NULL);
+		if (ft_strchr(buffer, '\n'))
+			break ;
+	}
+	return (free(buffer), stash);
+}
+
+/*copies the line to be returned from the stash*/
+char	*ft_line(char *stash)
+{
+	char	*line;
+	int		i;
+
+	i = 0;
+	if (!stash || stash[0] == '\0')
+		return (NULL);
+	while (stash[i] && stash[i] != '\n')
+		i++;
+	line = malloc(sizeof(char) * ((stash[i] == '\n') + i + 1));
+	if (!line)
+		return (NULL);
+	i = 0;
+	while (stash[i] && stash[i] != '\n')
+	{
+		line[i] = stash[i];
 		i++;
 	}
-	return (NULL);
+	if (stash[i] && stash[i] == '\n')
+	{
+		line[i] = '\n';
+		i++;
+	}
+	line[i] = '\0';
+	return (line);
+}
+
+/*updates the stash by line positions*/
+char	*ft_update(char *stash)
+{
+	char	*upd;
+	int		i;
+	int		j;
+
+	i = 0;
+	while (stash[i] && stash[i] != '\n')
+		i++;
+	if (!stash[i])
+		return (free(stash), NULL);
+	upd = malloc(sizeof(char) * (ft_strlen(stash) - i + 1));
+	if (!upd)
+		return (free(stash), NULL);
+	i++;
+	j = 0;
+	while (stash[i])
+		upd[j++] = stash[i++];
+	upd[j] = '\0';
+	return (free(stash), upd);
 }
 
 char	*get_next_line(int fd)
 {
 	static char	*stash;
-	char		buf[BUFFER_SIZE];
 	char		*line;
-	char		*save;
 
-	line = NULL;
-	save = NULL;
-	stash = ft_strjoin(stash, buf);
-	read(fd, buf, BUFFER_SIZE);
-	if (BUFFER_SIZE == 0)
+	if (fd < 0 || BUFFER_SIZE <= 0)
 		return (NULL);
-	while (!ft_strchr(stash, '\n'))
-		get_next_line(fd);
-	line = ft_strnjoin(stash, line, '\n');/*substr(stash, 0, ate strchr(\n))*/
-	save = ft_strldup(stash, ft_strnlen(line, '\0'));
-	free(stash);
-	stash = save;
-	free(save);
+	if (!stash)
+	{
+		stash = malloc(sizeof(char) * 1);
+		if (!stash)
+			return (NULL);
+		stash[0] = '\0';
+	}
+	stash = ft_read_file(fd, stash);
+	if (!stash)
+		return (NULL);
+	line = ft_line(stash);
+	if (!line)
+		return (free(stash), stash = NULL, NULL);
+	stash = ft_update(stash);
 	return (line);
-}
-
-int	main(void)
-{
-	int		fd;
-	char	*line;
-
-	line = NULL;
-	fd = open("test.txt", O_RDONLY);
-	line = get_next_line(fd);
-	printf("%s\n", line);
-	free(line);
 }
